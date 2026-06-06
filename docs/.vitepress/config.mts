@@ -1,0 +1,52 @@
+import { defineConfig } from "vitepress";
+import { generateSidebar } from "vitepress-sidebar";
+
+const sidebar = generateSidebar({
+  documentRootPath: "/docs",
+  basePath: "/docs",
+  collapsed: true,
+  collapseDepth: 1,
+  useTitleFromFileHeading: true,
+  useTitleFromFrontmatter: true,
+  useFolderTitleFromIndexFile: true,
+  useFolderLinkFromIndexFile: true,
+  hyphenToSpace: true,
+  capitalizeEachWords: true,
+  includeFolderIndexFile: false,
+  sortMenusByFrontmatterOrder: true,
+});
+
+export default defineConfig({
+  title: "NBenchmark",
+  description: "High-Performance, Type-Safe, Streaming Data Pipelines in .NET",
+  cleanUrls: true,
+  lastUpdated: true,
+  sitemap: {
+    hostname: "https://nbenchmark.net",
+  },
+  head: [["link", { rel: "icon", type: "image/png", href: "/nbenchmark.png" }]],
+
+  themeConfig: {
+    logo: "/nbenchmark.png",
+    nav: [
+      // { text: "Quick Start", link: "/getting-started/quick-start" },
+      // { text: "Core Concepts", link: "/core-concepts/" },
+      // { text: "Storage Providers", link: "/storage-providers/" },
+      // { text: "Connectors", link: "/connectors/" },
+      // { text: "Extensions", link: "/extensions/" },
+      // { text: "Analyzers", link: "/analyzers/" },
+    ],
+    search: {
+      provider: "local",
+    },
+    socialLinks: [
+      { icon: "github", link: "https://github.com/nbenchmark/NBenchmark" },
+      // { icon: "twitter", link: "https://twitter.com/NBenchmark_" },
+    ],
+    sidebar: sidebar,
+    footer: {
+      message: "Released under the MIT License.",
+      copyright: "",
+    },
+  },
+});
