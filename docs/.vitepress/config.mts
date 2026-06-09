@@ -18,9 +18,12 @@ const sidebar = generateSidebar({
 
 export default defineConfig({
   title: "NBenchmark",
-  description: "High-Performance, Type-Safe, Streaming Data Pipelines in .NET",
+  description: "A lightweight, async-native .NET benchmarking library with a great developer experience.",
   cleanUrls: true,
   lastUpdated: true,
+  markdown: {
+    math: true,
+  },
   sitemap: {
     hostname: "https://nbenchmark.net",
   },
