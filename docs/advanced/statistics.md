@@ -19,7 +19,7 @@ For each benchmark, NBenchmark runs the following sequence:
    - Call `iterationSetup` if provided.
    - Record `Stopwatch.GetTimestamp()`.
    - Invoke the benchmark action.
-   - Calculate elapsed time with `Stopwatch.GetElapsedTime(timestamp)`.
+   - Read the timestamp again and convert the raw tick delta to nanoseconds at the timer's **native resolution** (`delta × 10⁹ / Stopwatch.Frequency`).
    - Record allocation delta if `MeasureAllocations` is true.
    - Call `iterationTeardown` if provided.
 
@@ -35,7 +35,15 @@ NBenchmark uses `System.Diagnostics.Stopwatch`, which wraps the platform's high-
 Timer resolution: 1,000,000,000 ticks/s (1.00 ns per tick)
 ```
 
-On most modern hardware the resolution is 1 ns. On some virtual machines it may be coarser.
+On most modern hardware the resolution is 1 ns. On some virtual machines it may be coarser; on Windows the counter typically runs at 10 MHz (100 ns per tick).
+
+Per-iteration timings are computed directly from raw `Stopwatch` ticks - deliberately **not** via `TimeSpan`, whose ticks are always 100 ns. On a 1 GHz timer this preserves the full 1 ns sample resolution; round-tripping through `TimeSpan` would quantize every sample to a multiple of 100 ns and record sub-100 ns operations as zero.
+
+> [!NOTE] Timer-call overhead
+> Each sample includes the cost of one timestamp read (typically ~10-30 ns).
+> For bodies in the low-nanosecond range this overhead is a meaningful fraction
+> of the measurement, so treat absolute values at that scale as upper bounds and
+> prefer comparing benchmarks against a baseline measured the same way.
 
 ## Outlier trimming
 
@@ -190,9 +198,48 @@ Using the exact test for small samples removes the main source of error in the o
 
 The test requires at least **2 samples in each group**. With fewer samples the U statistic is undefined and the test returns `null` (no significance indicator is shown).
 
-## Summary of all reported statistics
+## Detail level (Simple vs Advanced)
 
-| Field | Formula | Description |
+NBenchmark supports two report detail levels that control how much information reporters display.
+
+### Simple mode
+
+Simple mode shows a compact 10-column table:
+
+| Column | Description |
+|---|---|
+| **Benchmark** | Benchmark name. |
+| **Median** | Median timing. |
+| **Mean** | Arithmetic mean. |
+| **Error** | ±Margin of error on the mean, with parenthesised percentage of the mean. |
+| **StdDev** | Sample standard deviation. |
+| **P95** | 95th percentile. |
+| **P99** | 99th percentile. |
+| **Ratio** | Speed relative to the baseline. |
+| **Sig** | ✓ = significant, ✗ = not significant, - = not applicable. |
+| **Alloc/op** | Mean bytes allocated per iteration, or - if not measured. |
+
+### Advanced mode
+
+Advanced mode shows the same 10-column table **plus** a per-benchmark stats block. The console reporter prints each stats block below its row; the Markdown reporter emits a dedicated details section after the table. The stats block includes:
+
+- **Outliers:** count of removed samples and the trimming method.
+- **Range:** Min to Max spread.
+- **Quartiles:** Q1, Q3, and IQR.
+- **Fences:** Lower and upper fences (only for `IqrFence` mode).
+- **Iterations:** pre-trim and post-trim sample counts and warmup count.
+- **Confidence interval:** full CI bounds and margin percent of mean.
+- **CV:** coefficient of variation as a percentage.
+- **Skewness and Kurtosis:** shape of the distribution.
+- **MAD:** median absolute deviation (scaled).
+- **N:** post-trim sample count.
+- **Allocation breakdown** (when `MeasureAllocations = true`): median, P95, and max allocation per iteration.
+
+## Summary of all reported fields
+
+### Core fields on BenchmarkResult
+
+| Field | Formula / method | Description |
 |---|---|---|
 | `Median` | Nearest-rank P50 | Robust central tendency. |
 | `Mean` | $\bar{x} = \frac{1}{n}\sum x_i$ | Arithmetic average. |
@@ -200,12 +247,34 @@ The test requires at least **2 samples in each group**. With fewer samples the U
 | `P99` | Nearest-rank P99 | 99th percentile. |
 | `Min` | $x_1$ (sorted) | Fastest measured sample. |
 | `Max` | $x_n$ (sorted) | Slowest measured sample. |
+| `Q1` | Nearest-rank P25 | First quartile. |
+| `Q3` | Nearest-rank P75 | Third quartile. |
+| `InterquartileRange` | Q3 - Q1 | Spread of the middle 50% of samples. |
+| `LowerFence` | Q1 - 1.5 $\times$ IQR | Lower outlier boundary (only when `OutlierMode == IqrFence`). |
+| `UpperFence` | Q3 + 1.5 $\times$ IQR | Upper outlier boundary (only when `OutlierMode == IqrFence`). |
+| `OutliersRemoved` | Count of discarded samples | Number of samples removed by outlier trimming. |
+| `N` | Post-trim length | Sample count after outlier removal. |
 | `StandardDeviation` | $s = \sqrt{\frac{1}{n-1}\sum(x_i-\bar{x})^2}$ | Spread of measurements (Bessel). |
 | `StandardError` | $s/\sqrt{n}$ | Precision of the mean estimate. |
 | `MarginOfError` | $t^{*} \times \text{SEM}$ | Half-width of CI on the mean. |
 | `ConfidenceIntervalLower` | $\bar{x} - \text{MoE}$ | Lower CI bound. |
 | `ConfidenceIntervalUpper` | $\bar{x} + \text{MoE}$ | Upper CI bound. |
 | `CoefficientOfVariation` | $s / \bar{x}$ | Relative variability. |
+| `Skewness` | $g_1 = \frac{n \sum (x_i - \bar{x})^3}{(n-1)(n-2) s^3}$ | Sample skewness. Zero for $n < 3$. |
+| `Kurtosis` | $g_2 = \frac{n(n+1)\sum (x_i-\bar{x})^4}{(n-1)(n-2)(n-3)s^4} - \frac{3(n-1)^2}{(n-2)(n-3)}$ | Excess kurtosis. Zero for $n < 4$. |
+| `Mad` | $\text{median}(\lvert x_i - \text{median}(x) \rvert) \times 1.4826$ | Median absolute deviation (scaled to $\sigma$). Zero for $n < 1$. |
 | `PValue` | Mann-Whitney U | Two-tailed p-value vs. baseline. |
-| `SignificanceVerdict` | $p < 0.05$ | Whether the difference is real (`Significant`, `NotSignificant`, or `NotTested`). |
+| `SignificanceVerdict` | $p < \alpha$ | Whether the difference is real (`Significant`, `NotSignificant`, or `NotTested`). |
 | `MeanAllocatedBytes` | Mean of iteration deltas | Mean heap allocation per iteration. |
+| `AllocMedian` | Nearest-rank P50 of iteration deltas | Median allocation per iteration (only when `MeasureAllocations = true`). |
+| `AllocP95` | Nearest-rank P95 of iteration deltas | P95 allocation per iteration (only when `MeasureAllocations = true`). |
+| `AllocMax` | Max of iteration deltas | Max allocation per iteration (only when `MeasureAllocations = true`). |
+
+### Computed properties
+
+| Property | Formula | Description |
+|---|---|---|
+| `Range` | Max - Min | Full spread of trimmed samples. |
+| `StandardErrorPercent` | $\text{SEM} / \bar{x} \times 100$ | Standard error as a percentage of the mean. |
+| `MarginPercent` | $\text{MoE} / \bar{x} \times 100$ | Margin of error as a percentage of the mean. |
+| `CoefficientOfVariationPercent` | $\text{CV} \times 100$ | Coefficient of variation as a percentage. |
