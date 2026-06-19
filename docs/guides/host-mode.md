@@ -1,7 +1,7 @@
 ---
 title: "Host mode: BenchmarkHost"
 description: Attribute-based benchmark discovery with a built-in command-line interface.
-order: 3
+order: 4
 ---
 
 # Host mode: BenchmarkHost
@@ -163,7 +163,7 @@ public void Sort(int n)
 }
 ```
 
-Each case becomes a separate benchmark entry in the output, named `MethodName(arg1, arg2, ...)`.
+Each case becomes a separate benchmark entry in the output, named `MethodName(name=value, ...)` using the method's parameter names.
 
 #### `[BenchmarkCases]` - programmatic case sources
 
@@ -188,7 +188,7 @@ public static IEnumerable<(int Count, string Order)> SortCases()
 }
 ```
 
-When the tuple elements are named (e.g. `(int Count, string Order)`), the display name uses those names: `Sort(Count=10, Order="asc")`. Unnamed tuples fall back to positional: `Sort(10, "asc")`.
+When the tuple elements are named (e.g. `(int Count, string Order)`), the display name uses those names: `Sort(Count=10, Order=asc)`. Unnamed tuples fall back to the method's own parameter names: `Sort(count=10, order=asc)`.
 
 The source method can be `static` or instance, `public` or `non-public`. A static source is recommended since instance sources receive a bare `Activator.CreateInstance` result at discovery time.
 
@@ -411,6 +411,7 @@ dotnet run -- --dry-run
 
 ## Next steps
 
+- [Parameterized benchmarks](./parameterized-benchmarks.md) - `[BenchmarkCase]` and `[BenchmarkCases]` in depth, plus comparison with suite mode
 - [CLI Reference](../reference/cli.md) - all command-line flags
 - [Configuration](../reference/configuration.md) - options reference
-- [Reporters](../reporters/) - all reporters
+- [Reporters](../reporters/) - all available reporters
