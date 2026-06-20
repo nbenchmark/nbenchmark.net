@@ -357,6 +357,56 @@ CLI flags like `--iterations` always override `WithOptions` values.
 
 By default benchmarks run in **random** order to reduce systematic bias. Call `WithRunOrder(RunOrder.Declaration)` (or pass `--order declaration`) to run them in declaration order instead.
 
+## Multi-runtime comparison
+
+Use the `--runtimes` CLI flag to run the same benchmarks across multiple .NET runtimes and compare results side-by-side. The project must target all specified runtimes in its `.csproj` file:
+
+```xml
+<TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+```
+
+```bash
+dotnet run -- --runtimes net8,net9,net10
+dotnet run -- --runtimes net8.0,net10.0
+dotnet run -- --runtimes net8,net9 --iterations 500 --reporter markdown --output ./results
+```
+
+Both short (`net8`) and full (`net8.0`) forms are accepted. When `--runtimes` is specified, the host builds the project for each target framework via `dotnet build -f <tfm>`, runs the benchmarks in a child process under that runtime, and aggregates the results.
+
+The console and markdown reporters add a "Runtime" column when results span multiple runtimes. Significance testing is performed within each runtime (net8 results are compared against the net8 baseline, not the net10 one). The first runtime in the list is the implicit baseline for ratio calculations.
+
+`--runtimes` overrides `--in-process`; cross-runtime always uses child processes.
+
+### `[Runtimes]` attribute
+
+Instead of passing `--runtimes` on the CLI, you can declare the runtimes on the benchmark class itself:
+
+```csharp
+using NBenchmark.Attributes;
+
+[Runtimes(RuntimeMoniker.Net8, RuntimeMoniker.Net9, RuntimeMoniker.Net10)]
+public class StringBenchmarks
+{
+    [Benchmark]
+    public string Concat() => "a" + "b" + "c";
+}
+```
+
+```bash
+# No --runtimes flag needed - the attribute drives the build
+dotnet run --project samples/MultiRuntimeHost
+```
+
+When `--runtimes` is passed on the CLI, the CLI list wins and `[Runtimes]` is ignored. When multiple classes declare `[Runtimes]`, the host uses the union of all declared lists (preserving declaration order, deduplicating). A class filtered out by `--filter` does not contribute its runtimes.
+
+| `--runtimes` flag | `[Runtimes]` attribute | Runtimes used |
+|-------------------|------------------------|---------------|
+| absent            | absent                 | none (single-runtime) |
+| absent            | present on >= 1 class  | union of all declared lists |
+| present           | absent or present      | CLI list; attribute ignored |
+
+See the [MultiRuntimeHost sample](../samples.md#multiruntimehost---host-mode-multi-runtime) for a complete example.
+
 ## Multiple launches
 
 Use `--launch-count <n>` on the CLI (or `WithOptions(new MeasurementOptions { LaunchCount = n })` in code) to run each benchmark N times as independent launches. Each launch includes its own warmup and GC cycle, so variance across launches reflects real run-to-run differences (process state, ASLR, scheduler placement), not just intra-run noise.
