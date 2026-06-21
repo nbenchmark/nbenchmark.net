@@ -18,7 +18,8 @@ const sidebar = generateSidebar({
 
 export default defineConfig({
   title: "NBenchmark",
-  description: "A lightweight, async-native .NET benchmarking library with a great developer experience.",
+  description:
+    "A lightweight, async-native .NET benchmarking library with a great developer experience.",
   cleanUrls: true,
   lastUpdated: true,
   markdown: {
@@ -27,7 +28,17 @@ export default defineConfig({
   sitemap: {
     hostname: "https://nbenchmark.net",
   },
-  head: [["link", { rel: "icon", type: "image/png", href: "/nbenchmark.png" }]],
+  head: [
+    ["link", { rel: "icon", type: "image/png", href: "/nbenchmark.png" }],
+    [
+      "script",
+      {
+        defer: "",
+        src: "https://cloud.umami.is/script.js",
+        "data-website-id": "8375d935-70ed-4928-a706-dbe030e5d69a",
+      },
+    ],
+  ],
 
   themeConfig: {
     logo: "/nbenchmark.png",
